@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIツール統合サイト - ログイン</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <script src="auth.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div id="root"></div>
+  <script type="text/babel">
+    function LoginForm() {
+      const [userId, setUserId] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [error, setError] = React.useState('');
+
+      // ログイン処理
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (!userId || !password) {
+          setError('IDとパスワードを入力してください');
+          return;
+        }
+
+        // auth.jsのログイン関数を呼び出し
+        if (login(userId, password)) {
+          // ログイン成功時、メインページへリダイレクト
+          window.location.href = 'index.html';
+        } else {
+          setError('IDまたはパスワードが正しくありません');
+        }
+      };
+
+      return (
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-blue-600">AIツール統合サイト</h1>
+            <p className="text-gray-600 mt-2">ログインしてください</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="userId">
+                ユーザーID
+              </label>
+              <input
+                id="userId"
+                type="text"
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="ユーザーIDを入力"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              />
+            </div>
+            <div className="mb-6">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+                パスワード
+              </label>
+              <input
+                id="password"
+                type="password"
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="パスワードを入力"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <button
+                type="submit"
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              >
+                ログイン
+              </button>
+            </div>
+          </form>
+          <div className="mt-6 text-center text-sm text-gray-500">
+            <p>デモアカウント:</p>
+            <p>管理者: ID「admin」パスワード「admin123」</p>
+            <p>閲覧者: ID「user1」パスワード「user123」</p>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<LoginForm />, document.getElementById('root'));
+  </script>
+</body>
+</html>

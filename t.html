@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Capability Tier List</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .title-section, .date-section, .button-section {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .title-section label, .date-section label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    
+    input[type="text"], input[type="date"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .button-section {
+      gap: 10px;
+    }
+    
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+    
+    button.export {
+      background-color: #4a89dc;
+      color: white;
+    }
+    
+    button.save {
+      background-color: #37bc9b;
+      color: white;
+    }
+    
+    button.add {
+      background-color: #3498db;
+      color: white;
+    }
+    
+    button:hover {
+      opacity: 0.9;
+    }
+    
+    .emoji {
+      margin-right: 8px;
+    }
+    
+    .tier-list {
+      display: flex;
+      flex-direction: column;
+      background-color: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .title-display {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin: 15px 0;
+    }
+    
+    .tier-list-header {
+      display: flex;
+      border-bottom: 2px solid #333;
+    }
+    
+    .tier-list-header-cell {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-weight: bold;
+      border-left: 1px solid #333;
+      white-space: pre-line;
+      position: relative;
+    }
+    
+    .category-delete-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 20px;
+      height: 20px;
+      background-color: #e74c3c;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .tier-list-header-cell:hover .category-delete-button {
+      opacity: 1;
+    }
+    
+    .tier-list-header-spacer {
+      width: 100px;
+      flex-shrink: 0;
+    }
+    
+    .tier-row {
+      display: flex;
+      border-bottom: 1px solid #333;
+    }
+    
+    .tier-label {
+      width: 100px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+    
+    .s-plus { background-color: #ff9e9e; }
+    .s { background-color: #ffcc9e; }
+    .a { background-color: #ffeb9e; }
+    .b { background-color: #fffb9e; }
+    .c { background-color: #cdff9e; }
+    
+    .tier-cell {
+      flex: 1;
+      min-height: 80px;
+      padding: 10px;
+      background-color: #222;
+      border-left: 1px solid #444;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+    }
+    
+    .item-tray {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #eee;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .tray-title {
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    
+    .items-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .add-item-form {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .add-item-form input {
+      flex: 1;
+      padding: 10px;
+    }
+    
+    .draggable-item {
+      padding: 8px 12px;
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      cursor: move;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin: 4px;
+    }
+
+    .delete-button {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 18px;
+      height: 18px;
+      background-color: #e74c3c;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .draggable-item:hover .delete-button {
+      opacity: 1;
+    }
+    
+    .draggable-item.dragging {
+      opacity: 0.4;
+    }
+    
+    /* Hide delete button in the tray items */
+    .items-container .delete-button {
+      display: none;
+    }
+    
+    @media print {
+      .header, .item-tray, .add-item-form {
+        display: none;
+      }
+      
+      .container {
+        width: 100%;
+        max-width: none;
+      }
+      
+      .tier-list {
+        box-shadow: none;
+        border: 1px solid #ddd;
+      }
+      
+      .delete-button {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header Section -->
+    <div class="header">
+      <div class="title-section">
+        <label for="title-input">Title:</label>
+        <input type="text" id="title-input" value="AI Capability Tier List">
+      </div>
+      
+      <div class="date-section">
+        <label for="date-input">Date:</label>
+        <input type="date" id="date-input">
+      </div>
+      
+      <div class="button-section">
+        <button class="export" id="export-btn">
+          <span class="emoji">⬇️</span> Export as Image
+        </button>
+        <button class="save" id="save-btn">
+          <span class="emoji">💾</span> Save as JSON
+        </button>
+      </div>
+    </div>
+    
+    <!-- Main Tier List -->
+    <div class="tier-list" id="tier-list">
+      <div class="title-display" id="title-display">AI Capability Tier List - </div>
+      
+      <!-- Header Row -->
+      <div class="tier-list-header">
+        <div class="tier-list-header-spacer"></div>
+        <!-- Category headers will be inserted here -->
+      </div>
+      
+      <!-- Tier rows will be inserted here -->
+    </div>
+    
+    <!-- Item Tray -->
+    <div class="item-tray" id="item-tray">
+      <div class="tray-title">Available Items:</div>
+      <div class="items-container" id="items-container">
+        <!-- Items will be inserted here -->
+      </div>
+      
+      <div class="add-item-form">
+        <input type="text" id="new-item-input" placeholder="Add new item...">
+        <button class="add" id="add-item-btn">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Define the tiers and categories
+    const tiers = [
+      { id: 's-plus', label: 'S+', class: 's-plus' },
+      { id: 's', label: 'S', class: 's' },
+      { id: 'a', label: 'A', class: 'a' },
+      { id: 'b', label: 'B', class: 'b' },
+      { id: 'c', label: 'C', class: 'c' }
+    ];
+    
+    const categories = [
+      '文章生成\n(Text Generation)', 
+      '画像生成\n(Image Generation)', 
+      '情報検索\n(Information Retrieval)', 
+      '資料作成\n(Document Creation)', 
+      '情報蓄積\n(Information Storage)'
+    ];
+    
+    // Initial items
+    const initialItems = [
+      { id: 'item-1', content: 'ChatGPT (Free)' },
+      { id: 'item-2', content: 'ChatGPT (Paid)' },
+      { id: 'item-3', content: 'Claude' },
+      { id: 'item-4', content: 'Genspark' },
+      { id: 'item-5', content: 'Midjourney' },
+      { id: 'item-6', content: 'Felo' },
+      { id: 'item-7', content: 'Veo2' },
+      { id: 'item-8', content: 'Perplexity' },
+      { id: 'item-9', content: 'Google Gemini' },
+      { id: 'item-10', content: 'Google Notebooklm' }
+    ];
+    
+    // Set today's date as default
+    document.getElementById('date-input').valueAsDate = new Date();
+    
+    // Update title display when title input changes
+    const titleInput = document.getElementById('title-input');
+    const dateInput = document.getElementById('date-input');
+    const titleDisplay = document.getElementById('title-display');
+    
+    function updateTitle() {
+      titleDisplay.textContent = `${titleInput.value} - ${dateInput.value}`;
+    }
+    
+    titleInput.addEventListener('input', updateTitle);
+    dateInput.addEventListener('input', updateTitle);
+    updateTitle();
+    
+    // Build the tier list structure
+    function buildTierList() {
+      const headerRow = document.querySelector('.tier-list-header');
+      
+      // Add category headers
+      categories.forEach((category, index) => {
+        const headerCell = document.createElement('div');
+        headerCell.className = 'tier-list-header-cell';
+        headerCell.textContent = category;
+        headerCell.dataset.category = index;
+        
+        // Add delete button for category
+        const deleteButton = document.createElement('div');
+        deleteButton.className = 'category-delete-button';
+        deleteButton.textContent = '×';
+        deleteButton.addEventListener('click', () => handleDeleteCategory(index));
+        headerCell.appendChild(deleteButton);
+        
+        headerRow.appendChild(headerCell);
+      });
+      
+      const tierListElement = document.getElementById('tier-list');
+      
+      // Add tier rows
+      tiers.forEach(tier => {
+        const rowElement = document.createElement('div');
+        rowElement.className = 'tier-row';
+        
+        // Add tier label
+        const labelElement = document.createElement('div');
+        labelElement.className = `tier-label ${tier.class}`;
+        labelElement.textContent = tier.label;
+        rowElement.appendChild(labelElement);
+        
+        // Add cells for each category
+        categories.forEach((category, catIndex) => {
+          const cellElement = document.createElement('div');
+          cellElement.className = 'tier-cell';
+          cellElement.dataset.tier = tier.id;
+          cellElement.dataset.category = catIndex;
+          
+          // Add drop event listeners
+          cellElement.addEventListener('dragover', handleDragOver);
+          cellElement.addEventListener('drop', handleDrop);
+          
+          rowElement.appendChild(cellElement);
+        });
+        
+        tierListElement.appendChild(rowElement);
+      });
+    }
+    
+    // Initialize the item tray
+    function initializeItemTray() {
+      const itemsContainer = document.getElementById('items-container');
+      
+      initialItems.forEach(item => {
+        const itemElement = createDraggableItem(item, false);
+        itemsContainer.appendChild(itemElement);
+      });
+      
+      // Make the tray a drop target too
+      itemsContainer.addEventListener('dragover', handleDragOver);
+      itemsContainer.addEventListener('drop', handleDropToTray);
+    }
+    
+    // Create a draggable item element
+    function createDraggableItem(item, isInCell = false) {
+      const itemElement = document.createElement('div');
+      itemElement.className = 'draggable-item';
+      itemElement.textContent = item.content;
+      itemElement.draggable = true;
+      itemElement.dataset.id = item.id;
+      
+      // Add drag event listeners
+      itemElement.addEventListener('dragstart', handleDragStart);
+      itemElement.addEventListener('dragend', handleDragEnd);
+      
+      // Add delete button for items in cells
+      if (isInCell) {
+        const deleteButton = document.createElement('div');
+        deleteButton.className = 'delete-button';
+        deleteButton.textContent = '×';
+        deleteButton.addEventListener('click', handleDeleteItem);
+        itemElement.appendChild(deleteButton);
+      }
+      
+      return itemElement;
+    }
+    
+    // Handle delete item
+    function handleDeleteItem(e) {
+      e.stopPropagation();
+      const item = e.target.parentElement;
+      if (item && item.parentElement) {
+        item.parentElement.removeChild(item);
+      }
+    }
+    
+    // Drag and drop handlers
+    let draggedElement = null;
+    
+    function handleDragStart(e) {
+      draggedElement = e.target;
+      e.target.classList.add('dragging');
+      
+      // Set data for drag operation
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('text/plain', e.target.dataset.id);
+    }
+    
+    function handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      draggedElement = null;
+    }
+    
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    
+    function handleDrop(e) {
+      e.preventDefault();
+      
+      if (!draggedElement) return;
+      
+      const cell = e.target.closest('.tier-cell');
+      if (!cell) return;
+      
+      // Clone the item for the new location
+      const itemContent = draggedElement.textContent;
+      
+      const newItem = {
+        id: `${draggedElement.dataset.id}-${Date.now()}`,
+        content: itemContent
+      };
+      
+      const newItemElement = createDraggableItem(newItem, true);
+      cell.appendChild(newItemElement);
+    }
+    
+    function handleDropToTray(e) {
+      e.preventDefault();
+      
+      // If the item was dropped from a cell (not from another tray item), 
+      // we don't need to do anything since we're cloning
+    }
+    
+    // Add new item handler
+    function handleAddItem() {
+      const input = document.getElementById('new-item-input');
+      const content = input.value.trim();
+      
+      if (content) {
+        const itemsContainer = document.getElementById('items-container');
+        const newItem = {
+          id: `item-${Date.now()}`,
+          content: content
+        };
+        
+        const itemElement = createDraggableItem(newItem, false);
+        itemsContainer.appendChild(itemElement);
+        
+        input.value = '';
+      }
+    }
+    
+    // Export functions
+    function handleExport() {
+      alert('In a full implementation, this would save the tier list as an image.\n\nFor now, you can use the browser\'s print function (Ctrl+P or Cmd+P) to save as PDF.');
+    }
+    
+    function handleSaveJSON() {
+      // Collect all placed items
+      const placedItems = [];
+      
+      document.querySelectorAll('.tier-cell .draggable-item').forEach(item => {
+        const cell = item.closest('.tier-cell');
+        
+        placedItems.push({
+          id: item.dataset.id,
+          content: item.childNodes[0].nodeValue, // Get text content without the delete button
+          tier: cell.dataset.tier,
+          category: categories[parseInt(cell.dataset.category)]
+        });
+      });
+      
+      const data = {
+        title: titleInput.value,
+        date: dateInput.value,
+        tiers: tiers.map(t => t.label),
+        categories: categories,
+        items: placedItems
+      };
+      
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${titleInput.value.replace(/\s+/g, '-').toLowerCase()}-${dateInput.value}.json`;
+      document.body.appendChild(a);
+      a.click();
+      
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // Handle category deletion
+    function handleDeleteCategory(categoryIndex) {
+      if (categories.length <= 1) {
+        alert('少なくとも1つのカテゴリーが必要です。');
+        return;
+      }
+      
+      // Save the current items in the tier list
+      const savedItems = [];
+      document.querySelectorAll('.tier-cell .draggable-item').forEach(item => {
+        const cell = item.closest('.tier-cell');
+        const catIndex = parseInt(cell.dataset.category);
+        
+        // Only save items that are not in the category being deleted
+        if (catIndex !== categoryIndex) {
+          savedItems.push({
+            content: item.childNodes[0].nodeValue, // Get text content without the delete button
+            tier: cell.dataset.tier,
+            // Adjust category index for items after the deleted category
+            category: catIndex > categoryIndex ? catIndex - 1 : catIndex
+          });
+        }
+      });
+      
+      // Remove the category from the array
+      categories.splice(categoryIndex, 1);
+      
+      // Clear the tier list and rebuild it
+      const tierListElement = document.getElementById('tier-list');
+      const titleDisplay = document.getElementById('title-display');
+      const headerRow = document.querySelector('.tier-list-header');
+      
+      // Save the title display
+      const titleText = titleDisplay.textContent;
+      
+      // Clear all rows except the title
+      while (headerRow.nextSibling) {
+        tierListElement.removeChild(headerRow.nextSibling);
+      }
+      
+      // Clear all header cells except the spacer
+      while (headerRow.childNodes.length > 1) {
+        headerRow.removeChild(headerRow.lastChild);
+      }
+      
+      // Rebuild the tier list with the updated categories
+      buildTierList();
+      
+      // Restore the title
+      titleDisplay.textContent = titleText;
+      
+      // Restore the saved items
+      savedItems.forEach(item => {
+        // Find the cell to place the item in
+        const cell = document.querySelector(`.tier-cell[data-tier="${item.tier}"][data-category="${item.category}"]`);
+        if (cell) {
+          const newItem = {
+            id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            content: item.content
+          };
+          
+          const newItemElement = createDraggableItem(newItem, true);
+          cell.appendChild(newItemElement);
+        }
+      });
+    }
+    
+    // Set up event listeners
+    document.getElementById('add-item-btn').addEventListener('click', handleAddItem);
+    document.getElementById('new-item-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        handleAddItem();
+      }
+    });
+    
+    document.getElementById('export-btn').addEventListener('click', handleExport);
+    document.getElementById('save-btn').addEventListener('click', handleSaveJSON);
+    
+    // Initialize the page
+    buildTierList();
+    initializeItemTray();
+  </script>
+</body>
+</html>

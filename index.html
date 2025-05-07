@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIツール統合サイト</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <script src="auth.js"></script>
+  <style>
+    .modal { background-color: rgba(0,0,0,0.5); }
+    .tier-tool-x {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .tier-tool:hover .tier-tool-x {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen" onload="checkAuth()">
+  <div id="root"></div>
+  <script type="text/babel">
+    // --- データ初期値 ---
+    const initialCategories = [
+      {
+        id: uuid.v4(),
+        name: "文章生成・対話型AI",
+        tools: [
+          { id: uuid.v4(), name: "ChatGPT", description: "自然な対話形式で文章作成、要約、翻訳、アイデア出しなど多用途に対応。" },
+          { id: uuid.v4(), name: "Google Gemini", description: "テキスト、画像、音声のマルチモーダル対応。Googleサービスとの連携が強み。" },
+          { id: uuid.v4(), name: "Claude", description: "Anthropic社のAI。倫理的な設計で、長文の理解と生成に強み。" }
+        ]
+      },
+      {
+        id: uuid.v4(),
+        name: "情報収集・資料作成支援",
+        tools: [
+          { id: uuid.v4(), name: "Felo（フェロー）", description: "日本発のAI検索エンジン。検索からプレゼン資料作成、マインドマップ生成まで対応。" },
+          { id: uuid.v4(), name: "GenSparkAI", description: "AIエージェントが情報収集から資料作成、動画制作まで自動化。スーパーエージェント機能が特徴。" },
+          { id: uuid.v4(), name: "Perplexity AI", description: "GPT-4を搭載した次世代のAI検索エンジン。リアルタイムの情報検索が可能で、日本語にも対応。" }
+        ]
+      }
+    ];
+
+    // --- 管理画面コンポーネント（soft.htmlベース） ---
+    function ToolManager({ categories, setCategories }) {
+      // ステート
+      const [selectedTool, setSelectedTool] = React.useState(null);
+      const [selectedCategory, setSelectedCategory] = React.useState(null);
+      const [isAddingTool, setIsAddingTool] = React.useState(false);
+      const [isAddingCategory, setIsAddingCategory] = React.useState(false);
+      const [newToolName, setNewToolName] = React.useState('');
+      const [newToolDescription, setNewToolDescription] = React.useState('');
+      const [newCategoryName, setNewCategoryName] = React.useState('');
+      const [searchTerm, setSearchTerm] = React.useState('');
+      
+      // 管理者権限の確認
+      const isAdminUser = isAdmin();
+
+      // カテゴリー追加
+      const addCategory = () => {
+        if (!newCategoryName.trim()) return;
+        const newCategory = {
+          id: uuid.v4(),
+          name: newCategoryName,
+          tools: []
+        };
+        const updated = [...categories, newCategory];
+        setCategories(updated);
+        setNewCategoryName('');
+        setIsAddingCategory(false);
+      };
+
+      // ツール追加
+      const addTool = () => {
+        if (!newToolName.trim() || !selectedCategory) return;
+        const newTool = {
+          id: uuid.v4(),
+          name: newToolName,
+          description: newToolDescription
+        };
+        const updated = categories.map(cat =>
+          cat.id === selectedCategory.id
+            ? { ...cat, tools: [...cat.tools, newTool] }
+            : cat
+        );
+        setCategories(updated);
+        setNewToolName('');
+        setNewToolDescription('');
+        setIsAddingTool(false);
+      };
+
+      // ツール編集
+      const updateTool = () => {
+        if (!selectedTool || !selectedCategory) return;
+        const updated = categories.map(cat =>
+          cat.id === selectedCategory.id
+            ? { ...cat, tools: cat.tools.map(tool =>
+                tool.id === selectedTool.id
+                  ? { ...tool, name: newToolName, description: newToolDescription }
+                  : tool
+              ) }
+            : cat
+        );
+        setCategories(updated);
+        setSelectedTool(null);
+        setNewToolName('');
+        setNewToolDescription('');
+      };
+
+      // ツール削除
+      const deleteTool = (categoryId, toolId) => {
+        const updated = categories.map(cat =>
+          cat.id === categoryId
+            ? { ...cat, tools: cat.tools.filter(tool => tool.id !== toolId) }
+            : cat
+        );
+        setCategories(updated);
+      };
+
+      // カテゴリ削除
+      const deleteCategory = (categoryId) => {
+        const updated = categories.filter(cat => cat.id !== categoryId);
+        setCategories(updated);
+      };
+
+      // モーダルを閉じる
+      const closeModal = () => {
+        setSelectedTool(null);
+        setIsAddingTool(false);
+        setIsAddingCategory(false);
+        setNewToolName('');
+        setNewToolDescription('');
+        setNewCategoryName('');
+      };
+
+      // 検索フィルタ
+      const filteredCategories = categories.map(cat => {
+        const filteredTools = cat.tools.filter(tool =>
+          tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          tool.description.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return { ...cat, tools: filteredTools };
+      }).filter(cat => cat.tools.length > 0 || cat.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      return (
+        <div className="container mx-auto px-4 py-8">
+          <header className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-3xl font-bold text-blue-600">AIツール管理サイト</h1>
+              <div className="flex space-x-2">
+                {isAdminUser && (
+                  <a
+                    href="admin.html"
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                    ユーザー管理
+                  </a>
+                )}
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm7 4a1 1 0 10-2 0v4a1 1 0 102 0V7z" clipRule="evenodd" />
+                  </svg>
+                  ログアウト
+                </button>
+              </div>
+            </div>
+            <p className="text-center text-gray-600 mb-6">最新のAIツールを一覧で管理・編集できます</p>
+            {/* 検索バー */}
+            <div className="max-w-xl mx-auto">
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="AIツールを検索..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                <div className="absolute right-3 top-2.5 text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </header>
+          {/* カテゴリー追加ボタン - 管理者のみ表示 */}
+          {isAdminUser && (
+            <div className="flex justify-center mb-8">
+              <button
+                onClick={() => setIsAddingCategory(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                新しいカテゴリーを追加
+              </button>
+            </div>
+          )}
+          {/* メインコンテンツ */}
+          <div className="grid grid-cols-1 gap-8">
+            {filteredCategories.map(category => (
+              <div key={category.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="category p-4 flex justify-between items-center border-l-4 border-blue-500 bg-blue-50">
+                  <h2 className="text-xl font-semibold">{category.name}</h2>
+                  {isAdminUser ? (
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => { setSelectedCategory(category); setIsAddingTool(true); }}
+                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        ツール追加
+                      </button>
+                      <button
+                        onClick={() => deleteCategory(category.id)}
+                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        削除
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {category.tools.map(tool => (
+                    <div key={tool.id} className="tool-card bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-medium text-lg text-blue-800">{tool.name}</h3>
+                        {isAdminUser && (
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => { setSelectedCategory(category); setSelectedTool(tool); setNewToolName(tool.name); setNewToolDescription(tool.description); }}
+                              className="text-blue-500 hover:text-blue-700"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => deleteTool(category.id, tool.id)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-sm">{tool.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* ツール編集モーダル */}
+          {selectedTool && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 modal">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-4">ツールを編集</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">ツール名</label>
+                  <input
+                    type="text"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    value={newToolName}
+                    onChange={e => setNewToolName(e.target.value)}
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">説明</label>
+                  <textarea
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
+                    value={newToolDescription}
+                    onChange={e => setNewToolDescription(e.target.value)}
+                  ></textarea>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={closeModal}
+                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+                  >キャンセル</button>
+                  <button
+                    onClick={updateTool}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >更新</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ツール追加モーダル */}
+          {isAddingTool && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 modal">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-4">新しいツールを追加</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">ツール名</label>
+                  <input
+                    type="text"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    value={newToolName}
+                    onChange={e => setNewToolName(e.target.value)}
+                    placeholder="ツール名を入力"
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">説明</label>
+                  <textarea
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
+                    value={newToolDescription}
+                    onChange={e => setNewToolDescription(e.target.value)}
+                    placeholder="ツールの説明を入力"
+                  ></textarea>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={closeModal}
+                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+                  >キャンセル</button>
+                  <button
+                    onClick={addTool}
+                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  >追加</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* カテゴリー追加モーダル */}
+          {isAddingCategory && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 modal">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-4">新しいカテゴリーを追加</h3>
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">カテゴリー名</label>
+                  <input
+                    type="text"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    placeholder="カテゴリー名を入力"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={closeModal}
+                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+                  >キャンセル</button>
+                  <button
+                    onClick={addCategory}
+                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  >追加</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <footer className="mt-12 text-center text-gray-500 text-sm">
+            <p>AIツールデータは自動的にブラウザに保存されます</p>
+            <p className="mt-1">© 2025 AIツール管理サイト</p>
+          </footer>
+        </div>
+      );
+    }
+
+    // --- ティアリスト画面コンポーネント（t.htmlベース） ---
+    function TierList({ categories, setCategories }) {
+      // ティア定義（固定）
+      const tiers = [
+        { id: 's-plus', label: 'S+', className: 'bg-pink-300 text-pink-900' },
+        { id: 's', label: 'S', className: 'bg-orange-300 text-orange-900' },
+        { id: 'a', label: 'A', className: 'bg-yellow-200 text-yellow-900' },
+        { id: 'b', label: 'B', className: 'bg-green-200 text-green-900' },
+        { id: 'c', label: 'C', className: 'bg-blue-200 text-blue-900' }
+      ];
+      
+      // 管理者権限の確認
+      const isAdminUser = isAdmin();
+
+      // --- カテゴリ（横列）状態管理 ---
+      const defaultCategories = [
+        { id: 'text', label: '文章生成', className: 'bg-pink-100 text-pink-800' },
+        { id: 'image', label: '画像生成', className: 'bg-yellow-100 text-yellow-800' },
+        { id: 'search', label: '情報検索', className: 'bg-green-100 text-green-800' },
+        { id: 'doc', label: '資料作成', className: 'bg-blue-100 text-blue-800' },
+        { id: 'store', label: '情報蓄積', className: 'bg-purple-100 text-purple-800' }
+      ];
+      const loadTierCategories = () => {
+        const saved = localStorage.getItem('tierCategories');
+        return saved ? JSON.parse(saved) : defaultCategories;
+      };
+      const [tierCategories, setTierCategories] = React.useState(loadTierCategories());
+
+      // カテゴリ追加フォーム
+      const [newCategoryName, setNewCategoryName] = React.useState("");
+      const handleAddCategory = () => {
+        const name = newCategoryName.trim();
+        if (!name) return;
+        const newCat = {
+          id: uuid.v4(),
+          label: name,
+          className: 'bg-gray-100 text-gray-800'
+        };
+        const updated = [...tierCategories, newCat];
+        setTierCategories(updated);
+        localStorage.setItem('tierCategories', JSON.stringify(updated));
+        setNewCategoryName("");
+      };
+      // カテゴリ削除
+      const handleDeleteCategory = (catId) => {
+        // カテゴリを削除
+        const updated = tierCategories.filter(cat => cat.id !== catId);
+        setTierCategories(updated);
+        setTimeout(() => {
+          localStorage.setItem('tierCategories', JSON.stringify(updated));
+        }, 0);
+        // ティアリストからも該当カテゴリのツールを未分類に戻す
+        const newMap = { ...tierMap };
+        Object.keys(newMap).forEach(key => {
+          if (key.endsWith(`|${catId}`)) delete newMap[key];
+        });
+        setTierMap(newMap);
+        setTimeout(() => {
+          localStorage.setItem('tierMap', JSON.stringify(newMap));
+        }, 0);
+      };
+
+      // --- ティアリスト状態管理 ---
+      // { 'tierId|categoryId': [toolId, ...] }
+      const loadTierMap = () => {
+        const saved = localStorage.getItem('tierMap');
+        return saved ? JSON.parse(saved) : {};
+      };
+      const [tierMap, setTierMap] = React.useState(loadTierMap());
+
+      // 管理画面で登録された全ツール
+      const allTools = categories.flatMap(cat => cat.tools.map(tool => ({ ...tool, categoryName: cat.name })));
+      // ティアに配置済みのtoolId一覧
+      const placedToolIds = Object.values(tierMap).flat();
+      // 未分類アイテム
+      const unplacedTools = allTools.filter(tool => !placedToolIds.includes(tool.id));
+
+      // --- ドラッグ＆ドロップ ---
+      const [draggedToolId, setDraggedToolId] = React.useState(null);
+
+      // ドラッグ開始
+      const handleDragStart = (toolId) => {
+        setDraggedToolId(toolId);
+      };
+      // ドラッグ終了
+      const handleDragEnd = () => {
+        setDraggedToolId(null);
+      };
+      // ドロップ
+      const handleDrop = (tierId, categoryId) => {
+        if (!draggedToolId) return;
+        // 既存の配置から削除
+        const newMap = { ...tierMap };
+        Object.keys(newMap).forEach(key => {
+          newMap[key] = newMap[key].filter(id => id !== draggedToolId);
+        });
+        // 新しいセルに追加
+        const key = `${tierId}|${categoryId}`;
+        if (!newMap[key]) newMap[key] = [];
+        newMap[key].push(draggedToolId);
+        setTierMap(newMap);
+        localStorage.setItem('tierMap', JSON.stringify(newMap));
+        setDraggedToolId(null);
+      };
+      // ドラッグオーバー
+      const handleDragOver = (e) => {
+        e.preventDefault();
+      };
+
+      // 新規アイテム追加用ステート
+      const [newItemName, setNewItemName] = React.useState("");
+
+      // アイテム追加
+      const handleAddItem = () => {
+        const name = newItemName.trim();
+        if (!name) return;
+        // 既存カテゴリがなければ仮カテゴリを作成
+        let catId = categories[0]?.id;
+        let updatedCategories = [...categories];
+        if (!catId) {
+          catId = uuid.v4();
+          updatedCategories.push({ id: catId, name: "その他", tools: [] });
+        }
+        // 新ツール追加
+        const newTool = { id: uuid.v4(), name, description: "" };
+        updatedCategories = updatedCategories.map(cat =>
+          cat.id === catId ? { ...cat, tools: [...cat.tools, newTool] } : cat
+        );
+        setCategories(updatedCategories);
+        setNewItemName("");
+      };
+
+      // アイテム完全削除
+      const handleDeleteItem = (toolId) => {
+        // カテゴリからツールを削除
+        const updatedCategories = categories.map(cat => ({
+          ...cat,
+          tools: cat.tools.filter(t => t.id !== toolId)
+        }));
+        setCategories(updatedCategories);
+        // ティアリストからも削除
+        const newMap = { ...tierMap };
+        Object.keys(newMap).forEach(key => {
+          newMap[key] = newMap[key].filter(id => id !== toolId);
+        });
+        setTierMap(newMap);
+        localStorage.setItem('tierMap', JSON.stringify(newMap));
+      };
+
+      // --- UI ---
+      return (
+        <div className="p-4">
+          <h2 className="text-2xl font-bold mb-4 text-green-600">AIティアリスト</h2>
+          {/* カテゴリ追加フォーム */}
+          {isAdminUser && (
+            <div className="flex gap-2 mb-4 items-center">
+              <input
+                type="text"
+                className="px-2 py-1 border border-gray-300 rounded w-48"
+                placeholder="新しいカテゴリ名"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); }}
+              />
+              <button
+                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-700"
+                onClick={handleAddCategory}
+              >カテゴリ追加</button>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-300 bg-white rounded-lg">
+              <thead>
+                <tr>
+                  <th className="w-20"></th>
+                  {tierCategories.map(cat => (
+                    <th key={cat.id} className={`relative px-4 py-2 border-b border-gray-300 text-center text-base font-bold ${cat.className} group`}>
+                      {cat.label}
+                      {isAdminUser && (
+                        <button 
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="ml-2 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 top-1"
+                          title="カテゴリーを削除"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tiers.map(tier => (
+                  <tr key={tier.id}>
+                    <td className={`text-center font-bold text-lg ${tier.className}`}>{tier.label}</td>
+                    {tierCategories.map(cat => {
+                      const key = `${tier.id}|${cat.id}`;
+                      const toolsInCell = (tierMap[key] || []).map(id => allTools.find(t => t.id === id)).filter(Boolean);
+                      return (
+                        <td
+                          key={cat.id}
+                          className="h-24 border border-gray-200 align-top"
+                          onDrop={isAdminUser ? () => handleDrop(tier.id, cat.id) : null}
+                          onDragOver={isAdminUser ? handleDragOver : null}
+                          style={{ minWidth: 120 }}
+                        >
+                          <div className="flex flex-wrap gap-1 min-h-[32px]">
+                            {toolsInCell.map(tool => (
+                              <div
+                                key={tool.id}
+                                className={`tier-tool relative px-2 py-1 bg-white border border-gray-300 rounded shadow text-sm cursor-move ${draggedToolId === tool.id ? 'opacity-50' : ''}`}
+                                draggable
+                                onDragStart={() => handleDragStart(tool.id)}
+                                onDragEnd={handleDragEnd}
+                              >
+                                {tool.name}
+                                <button
+                                  className="tier-tool-x absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-700"
+                                  style={{lineHeight: '1'}}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    // 削除処理
+                                    const newMap = { ...tierMap };
+                                    const key = `${tier.id}|${cat.id}`;
+                                    newMap[key] = (newMap[key] || []).filter(id => id !== tool.id);
+                                    setTierMap(newMap);
+                                    localStorage.setItem('tierMap', JSON.stringify(newMap));
+                                  }}
+                                  title="このセルから削除"
+                                >×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* 未分類アイテム一覧 */}
+          <div className="mt-8">
+            <h3 className="font-bold mb-2 text-blue-700">未分類アイテム</h3>
+            {/* 新規アイテム追加フォーム */}
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                className="px-2 py-1 border border-gray-300 rounded w-48"
+                placeholder="新しいアイテム名"
+                value={newItemName}
+                onChange={e => setNewItemName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddItem(); }}
+              />
+              <button
+                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-700"
+                onClick={handleAddItem}
+              >追加</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {unplacedTools.length === 0 && <span className="text-gray-400">（管理画面でツールを追加してください）</span>}
+              {unplacedTools.map(tool => (
+                <div
+                  key={tool.id}
+                  className={`tier-tool relative px-3 py-1 bg-white border border-gray-300 rounded shadow text-sm ${isAdminUser ? 'cursor-move' : ''} ${draggedToolId === tool.id ? 'opacity-50' : ''}`}
+                  draggable={isAdminUser}
+                  onDragStart={isAdminUser ? () => handleDragStart(tool.id) : null}
+                  onDragEnd={isAdminUser ? handleDragEnd : null}
+                >
+                  {tool.name}
+                  {isAdminUser && (
+                    <button
+                      className="tier-tool-x absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-700"
+                      style={{lineHeight: '1'}}
+                      onClick={e => { e.stopPropagation(); handleDeleteItem(tool.id); }}
+                      title="このアイテムを完全削除"
+                    >×</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- メインアプリ ---
+    function App() {
+      // localStorageからデータ取得
+      const loadCategories = () => {
+        const saved = localStorage.getItem('aiToolsCategories');
+        return saved ? JSON.parse(saved) : initialCategories;
+      };
+      const [categories, setCategories] = React.useState(loadCategories);
+      const [tab, setTab] = React.useState('manage');
+      const [currentUser, setCurrentUser] = React.useState(null);
+      const [isAdminUser, setIsAdminUser] = React.useState(false);
+
+      // ユーザー情報の取得
+      React.useEffect(() => {
+        const user = getCurrentUser();
+        setCurrentUser(user);
+        setIsAdminUser(isAdmin());
+      }, []);
+
+      // データ保存
+      React.useEffect(() => {
+        localStorage.setItem('aiToolsCategories', JSON.stringify(categories));
+      }, [categories]);
+
+      // ログアウト処理
+      const handleLogout = () => {
+        logout();
+      };
+
+      return (
+        <div className="container mx-auto px-4 py-8">
+          {/* ヘッダー */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-blue-600">AIツール統合サイト</h1>
+            <div className="flex items-center space-x-4">
+              {currentUser && (
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">{currentUser.id}</span>
+                  <span className="ml-2 px-2 py-1 bg-gray-200 rounded-full text-xs">
+                    {currentUser.role === 'admin' ? '管理者' : '閲覧者'}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+              >
+                ログアウト
+              </button>
+            </div>
+          </div>
+
+          {/* タブ切り替え */}
+          <div className="flex mb-8 border-b">
+            <button
+              className={`px-4 py-2 font-bold ${tab==='manage' ? 'border-b-4 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+              onClick={() => setTab('manage')}
+            >管理</button>
+            <button
+              className={`ml-4 px-4 py-2 font-bold ${tab==='tier' ? 'border-b-4 border-green-500 text-green-600' : 'text-gray-500'}`}
+              onClick={() => setTab('tier')}
+            >ティアリスト</button>
+          </div>
+
+          {/* 権限メッセージ（閲覧者の場合） */}
+          {!isAdminUser && (
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6">
+              <p>閲覧モードでアクセスしています。コンテンツの閲覧のみ可能です。</p>
+            </div>
+          )}
+
+          {/* 画面切り替え */}
+          {tab === 'manage' ? (
+            <ToolManager 
+              categories={categories} 
+              setCategories={isAdminUser ? setCategories : () => {}} 
+            />
+          ) : (
+            <TierList 
+              categories={categories} 
+              setCategories={isAdminUser ? setCategories : () => {}} 
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
